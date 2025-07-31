@@ -3,10 +3,7 @@ import sqlite3
 import hashlib
 import json
 import datetime
-import openai
-import os
 from typing import Dict, List, Optional
-import pandas as pd
 
 # Page configuration
 st.set_page_config(
@@ -15,9 +12,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
-# Initialize OpenAI (you'll need to add your API key)
-# openai.api_key = st.secrets.get("OPENAI_API_KEY", "your-openai-api-key")
 
 class DatabaseManager:
     def __init__(self):
@@ -56,7 +50,6 @@ class DatabaseManager:
                 bedrooms INTEGER,
                 bathrooms REAL,
                 square_feet INTEGER,
-                lot_size TEXT,
                 year_built INTEGER,
                 current_condition TEXT,
                 arv REAL,
@@ -70,23 +63,9 @@ class DatabaseManager:
                 contact_phone TEXT,
                 contact_email TEXT,
                 notes TEXT,
-                contract_generated BOOLEAN DEFAULT 0,
-                loi_generated BOOLEAN DEFAULT 0,
                 status TEXT DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
-            )
-        ''')
-        
-        # Contracts table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS contracts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                deal_id INTEGER,
-                contract_type TEXT NOT NULL,
-                contract_content TEXT NOT NULL,
-                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (deal_id) REFERENCES deals (id)
             )
         ''')
         
@@ -150,15 +129,15 @@ class DatabaseManager:
         cursor.execute('''
             INSERT INTO deals (
                 user_id, property_address, city, state, zip_code, property_type,
-                bedrooms, bathrooms, square_feet, lot_size, year_built, current_condition,
+                bedrooms, bathrooms, square_feet, year_built, current_condition,
                 arv, repair_costs, acquisition_cost, holding_costs, selling_costs, profit_margin,
                 deal_type, contact_name, contact_phone, contact_email, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             deal_data['user_id'], deal_data['property_address'], deal_data['city'],
             deal_data['state'], deal_data['zip_code'], deal_data['property_type'],
             deal_data['bedrooms'], deal_data['bathrooms'], deal_data['square_feet'],
-            deal_data['lot_size'], deal_data['year_built'], deal_data['current_condition'],
+            deal_data['year_built'], deal_data['current_condition'],
             deal_data['arv'], deal_data['repair_costs'], deal_data['acquisition_cost'],
             deal_data['holding_costs'], deal_data['selling_costs'], deal_data['profit_margin'],
             deal_data['deal_type'], deal_data['contact_name'], deal_data['contact_phone'],
@@ -183,30 +162,11 @@ class DatabaseManager:
         
         columns = [
             'id', 'user_id', 'property_address', 'city', 'state', 'zip_code',
-            'property_type', 'bedrooms', 'bathrooms', 'square_feet', 'lot_size',
+            'property_type', 'bedrooms', 'bathrooms', 'square_feet',
             'year_built', 'current_condition', 'arv', 'repair_costs', 'acquisition_cost',
             'holding_costs', 'selling_costs', 'profit_margin', 'deal_type',
             'contact_name', 'contact_phone', 'contact_email', 'notes',
-            'contract_generated', 'loi_generated', 'status', 'created_at',
-            'user_name', 'user_email'
-        ]
-        
-        return [dict(zip(columns, deal)) for deal in deals]
-    
-    def get_user_deals(self, user_id: int) -> List[Dict]:
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM deals WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
-        deals = cursor.fetchall()
-        conn.close()
-        
-        columns = [
-            'id', 'user_id', 'property_address', 'city', 'state', 'zip_code',
-            'property_type', 'bedrooms', 'bathrooms', 'square_feet', 'lot_size',
-            'year_built', 'current_condition', 'arv', 'repair_costs', 'acquisition_cost',
-            'holding_costs', 'selling_costs', 'profit_margin', 'deal_type',
-            'contact_name', 'contact_phone', 'contact_email', 'notes',
-            'contract_generated', 'loi_generated', 'status', 'created_at'
+            'status', 'created_at', 'user_name', 'user_email'
         ]
         
         return [dict(zip(columns, deal)) for deal in deals]
@@ -238,38 +198,11 @@ class DealCalculator:
             'max_offer_70_rule': max_offer_70_rule,
             'deal_quality': 'Excellent' if profit_margin > 20 else 'Good' if profit_margin > 10 else 'Fair' if profit_margin > 5 else 'Poor'
         }
-    
-    @staticmethod
-    def get_ai_insights(deal_data: Dict) -> str:
-        """Get AI-powered insights if OpenAI is available"""
-        if not OPENAI_AVAILABLE:
-            return "AI insights require OpenAI integration. Basic calculations are still available."
-        
-        # This would contain OpenAI API calls when properly configured
-        property_type = deal_data.get('property_type', 'Unknown')
-        arv = deal_data.get('arv', 0)
-        repair_costs = deal_data.get('repair_costs', 0)
-        
-        # Basic insights without AI for now
-        insights = []
-        
-        if repair_costs > arv * 0.3:
-            insights.append("⚠️ High repair costs detected. Consider negotiating a lower purchase price.")
-        
-        if deal_data.get('profit_margin', 0) > 25:
-            insights.append("✅ Excellent profit margins! This looks like a strong deal.")
-        elif deal_data.get('profit_margin', 0) > 15:
-            insights.append("👍 Good profit margins. This deal has potential.")
-        else:
-            insights.append("⚠️ Low profit margins. Analyze carefully before proceeding.")
-        
-        return "\n".join(insights) if insights else "Deal analysis complete. Review the numbers carefully."
 
 class ContractGenerator:
     @staticmethod
     def generate_wholesale_contract(deal_data: Dict) -> str:
-        template = f"""
-REAL ESTATE PURCHASE AND SALE AGREEMENT
+        template = f"""REAL ESTATE PURCHASE AND SALE AGREEMENT
 (WHOLESALE CONTRACT)
 
 Property Address: {deal_data.get('property_address', '')}, {deal_data.get('city', '')}, {deal_data.get('state', '')} {deal_data.get('zip_code', '')}
@@ -299,14 +232,12 @@ This contract is subject to Buyer's inspection and approval of the property, tit
 Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 Generated by: Wholesale2Flip Platform
 
-NOTE: This is a template contract. Please consult with a real estate attorney before use.
-        """
+NOTE: This is a template contract. Please consult with a real estate attorney before use."""
         return template.strip()
     
     @staticmethod
     def generate_loi(deal_data: Dict) -> str:
-        template = f"""
-LETTER OF INTENT (LOI)
+        template = f"""LETTER OF INTENT (LOI)
 REAL ESTATE INVESTMENT OPPORTUNITY
 
 Date: {datetime.datetime.now().strftime('%Y-%m-%d')}
@@ -342,8 +273,7 @@ Best regards,
 Wholesale2Flip Team
 
 Generated by: Wholesale2Flip Platform
-Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-        """
+Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
         return template.strip()
 
 # Initialize database
@@ -407,20 +337,6 @@ def load_css():
         transform: scale(1.05);
     }
     
-    .pricing-card.featured::before {
-        content: "MOST POPULAR";
-        position: absolute;
-        top: -15px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #667eea;
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: bold;
-    }
-    
     .price-tag {
         font-size: 2.5rem;
         font-weight: 900;
@@ -434,15 +350,6 @@ def load_css():
         padding: 1rem;
         border-radius: 10px;
         margin-bottom: 2rem;
-    }
-    
-    .deal-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 15px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        margin: 1rem 0;
-        border-left: 5px solid #667eea;
     }
     
     .metric-card {
@@ -463,11 +370,6 @@ def load_css():
         font-weight: 600;
         transition: all 0.3s ease;
     }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -480,10 +382,12 @@ def init_session_state():
         st.session_state.current_page = 'home'
 
 def show_login_signup():
-    st.markdown('<div class="hero-section">', unsafe_allow_html=True)
-    st.markdown('<h1 class="hero-title">Welcome to Wholesale2Flip</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="hero-subtitle">Your Complete Real Estate Wholesaling Platform</p>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="hero-section">
+        <h1 class="hero-title">Welcome to Wholesale2Flip</h1>
+        <p class="hero-subtitle">Your Complete Real Estate Wholesaling Platform</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
@@ -523,7 +427,7 @@ def show_home_page():
     st.markdown("""
     <div class="hero-section">
         <h1 class="hero-title">Wholesale2Flip</h1>
-        <p class="hero-subtitle">Master Real Estate Wholesaling with AI-Powered Tools, Calculations, and Professional Contracts</p>
+        <p class="hero-subtitle">Master Real Estate Wholesaling with Professional Tools, Calculations, and Contracts</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -533,8 +437,8 @@ def show_home_page():
     with col1:
         st.markdown("""
         <div class="feature-card">
-            <h3>🤖 AI-Powered Calculations</h3>
-            <p>Advanced deal analysis with GPT integration for accurate ARV estimates, repair costs, and profit projections.</p>
+            <h3>🧮 Deal Calculator</h3>
+            <p>Advanced deal analysis with profit calculations, 70% rule, and ROI analysis for every property.</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -589,8 +493,8 @@ def show_home_page():
             <div class="price-tag">$20</div>
             <p>per month</p>
             <ul>
-                <li>✅ AI-Powered Calculations</li>
-                <li>✅ Advanced Contract Suite</li>
+                <li>✅ Advanced Calculations</li>
+                <li>✅ Full Contract Suite</li>
                 <li>✅ Unlimited Deals</li>
                 <li>✅ LOI Generation</li>
                 <li>✅ Priority Support</li>
@@ -703,7 +607,6 @@ def show_deal_calculator():
                     'bedrooms': bedrooms,
                     'bathrooms': bathrooms,
                     'square_feet': square_feet,
-                    'lot_size': '',
                     'year_built': year_built,
                     'current_condition': current_condition,
                     'arv': arv,
@@ -757,12 +660,6 @@ def show_deal_calculator():
                 st.markdown(f"**Deal Quality:** {metrics['deal_quality']}")
                 st.markdown(f"**70% Rule Max Offer:** ${metrics['max_offer_70_rule']:,.2f}")
                 
-                # Show AI insights
-                insights = DealCalculator.get_ai_insights(deal_data)
-                if insights:
-                    st.markdown("### 🤖 AI Insights")
-                    st.info(insights)
-                
                 # Generate contracts if professional or enterprise
                 if user_tier in ['professional', 'enterprise']:
                     st.markdown("## 📄 Generated Documents")
@@ -791,67 +688,6 @@ def show_deal_calculator():
                                 mime="text/plain"
                             )
 
-def show_my_deals():
-    st.markdown("# 📊 My Deals")
-    
-    if not st.session_state.logged_in:
-        st.warning("Please login to view your deals")
-        return
-    
-    deals = db.get_user_deals(st.session_state.user['id'])
-    
-    if not deals:
-        st.info("No deals found. Create your first deal using the Deal Calculator!")
-        return
-    
-    for deal in deals:
-        with st.expander(f"📍 {deal['property_address']} - ${deal['arv']:,.0f} ARV"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown(f"""
-                **Property Details:**
-                - Address: {deal['property_address']}, {deal['city']}, {deal['state']} {deal['zip_code']}
-                - Type: {deal['property_type']}
-                - Bedrooms: {deal['bedrooms']} | Bathrooms: {deal['bathrooms']}
-                - Square Feet: {deal['square_feet']:,}
-                - Year Built: {deal['year_built']}
-                - Condition: {deal['current_condition']}
-                """)
-            
-            with col2:
-                st.markdown(f"""
-                **Financial Summary:**
-                - ARV: ${deal['arv']:,.2f}
-                - Purchase Price: ${deal['acquisition_cost']:,.2f}
-                - Repair Costs: ${deal['repair_costs']:,.2f}
-                - Profit Margin: {deal['profit_margin']:.1f}%
-                - Deal Type: {deal['deal_type']}
-                - Status: {deal['status'].title()}
-                """)
-            
-            if deal['contact_name']:
-                st.markdown(f"""
-                **Contact Information:**
-                - Name: {deal['contact_name']}
-                - Phone: {deal['contact_phone']}
-                - Email: {deal['contact_email']}
-                """)
-            
-            if deal['notes']:
-                st.markdown(f"**Notes:** {deal['notes']}")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(f"Generate Contract", key=f"contract_{deal['id']}"):
-                    contract = ContractGenerator.generate_wholesale_contract(deal)
-                    st.text_area("Contract", contract, height=300, key=f"contract_text_{deal['id']}")
-            
-            with col2:
-                if st.button(f"Generate LOI", key=f"loi_{deal['id']}"):
-                    loi = ContractGenerator.generate_loi(deal)
-                    st.text_area("LOI", loi, height=300, key=f"loi_text_{deal['id']}")
-
 def show_admin_dashboard():
     if not st.session_state.logged_in or not st.session_state.user.get('is_admin'):
         st.error("Access denied. Admin privileges required.")
@@ -864,183 +700,85 @@ def show_admin_dashboard():
     </div>
     """, unsafe_allow_html=True)
     
-    # Admin tabs
-    tab1, tab2, tab3 = st.tabs(["📊 Deal Management", "👥 User Overview", "📈 Analytics"])
+    # Get all deals
+    deals = db.get_all_deals()
     
-    with tab1:
-        st.markdown("## All Deals - Disposition Pipeline")
+    if deals:
+        st.markdown("## All Student Deals - Disposition Pipeline")
         
-        deals = db.get_all_deals()
+        # Filter options
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            status_filter = st.selectbox("Filter by Status", 
+                ["All", "pending", "contacted", "under_contract", "closed"])
+        with col2:
+            deal_type_filter = st.selectbox("Filter by Deal Type", 
+                ["All", "Wholesale", "Fix & Flip", "Buy & Hold"])
+        with col3:
+            min_profit = st.number_input("Min Profit Margin %", min_value=0.0, value=0.0)
         
-        if deals:
-            # Filter options
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                status_filter = st.selectbox("Filter by Status", 
-                    ["All", "pending", "contacted", "under_contract", "closed", "dead"])
-            with col2:
-                deal_type_filter = st.selectbox("Filter by Deal Type", 
-                    ["All", "Wholesale", "Fix & Flip", "Buy & Hold"])
-            with col3:
-                min_profit = st.number_input("Min Profit Margin %", min_value=0.0, value=0.0)
-            
-            # Filter deals
-            filtered_deals = deals
-            if status_filter != "All":
-                filtered_deals = [d for d in filtered_deals if d['status'] == status_filter]
-            if deal_type_filter != "All":
-                filtered_deals = [d for d in filtered_deals if d['deal_type'] == deal_type_filter]
-            if min_profit > 0:
-                filtered_deals = [d for d in filtered_deals if d['profit_margin'] >= min_profit]
-            
-            st.markdown(f"**Showing {len(filtered_deals)} of {len(deals)} deals**")
-            
-            for deal in filtered_deals:
-                with st.expander(f"🏠 {deal['property_address']} | {deal['user_name']} | ${deal['arv']:,.0f} ARV | {deal['profit_margin']:.1f}% Profit"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown(f"""
-                        **Property Information:**
-                        - Address: {deal['property_address']}, {deal['city']}, {deal['state']} {deal['zip_code']}
-                        - Type: {deal['property_type']} | Bedrooms: {deal['bedrooms']} | Bathrooms: {deal['bathrooms']}
-                        - Square Feet: {deal['square_feet']:,} | Year Built: {deal['year_built']}
-                        - Condition: {deal['current_condition']}
-                        
-                        **Financial Details:**
-                        - ARV: ${deal['arv']:,.2f}
-                        - Purchase Price: ${deal['acquisition_cost']:,.2f}
-                        - Repair Costs: ${deal['repair_costs']:,.2f}
-                        - Profit Margin: {deal['profit_margin']:.1f}%
-                        """)
-                    
-                    with col2:
-                        st.markdown(f"""
-                        **Student/User Information:**
-                        - Name: {deal['user_name']}
-                        - Email: {deal['user_email']}
-                        - User ID: {deal['user_id']}
-                        
-                        **Contact Information:**
-                        - Seller Name: {deal['contact_name'] or 'N/A'}
-                        - Phone: {deal['contact_phone'] or 'N/A'}
-                        - Email: {deal['contact_email'] or 'N/A'}
-                        
-                        **Deal Status:** {deal['status'].title()}
-                        **Created:** {deal['created_at'][:10]}
-                        """)
-                    
-                    if deal['notes']:
-                        st.markdown(f"**Notes:** {deal['notes']}")
-                    
-                    # Admin actions
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        if st.button("📞 Contact Student", key=f"contact_{deal['id']}"):
-                            st.success(f"Contact {deal['user_name']} at {deal['user_email']}")
-                    
-                    with col2:
-                        new_status = st.selectbox("Update Status", 
-                            ["pending", "contacted", "under_contract", "closed", "dead"],
-                            index=["pending", "contacted", "under_contract", "closed", "dead"].index(deal['status']),
-                            key=f"status_{deal['id']}")
-                        if st.button("Update", key=f"update_{deal['id']}"):
-                            # Here you would update the deal status in the database
-                            st.success(f"Status updated to {new_status}")
-                    
-                    with col3:
-                        if st.button("📄 View Contract", key=f"view_contract_{deal['id']}"):
-                            contract = ContractGenerator.generate_wholesale_contract(deal)
-                            st.text_area("Generated Contract", contract, height=200, key=f"admin_contract_{deal['id']}")
-                    
-                    with col4:
-                        if st.button("📨 View LOI", key=f"view_loi_{deal['id']}"):
-                            loi = ContractGenerator.generate_loi(deal)
-                            st.text_area("Generated LOI", loi, height=200, key=f"admin_loi_{deal['id']}")
-        else:
-            st.info("No deals submitted yet.")
-    
-    with tab2:
-        st.markdown("## User Management")
+        # Filter deals
+        filtered_deals = deals
+        if status_filter != "All":
+            filtered_deals = [d for d in filtered_deals if d['status'] == status_filter]
+        if deal_type_filter != "All":
+            filtered_deals = [d for d in filtered_deals if d['deal_type'] == deal_type_filter]
+        if min_profit > 0:
+            filtered_deals = [d for d in filtered_deals if d['profit_margin'] >= min_profit]
         
-        conn = sqlite3.connect(db.db_name)
-        users_df = pd.read_sql_query("""
-            SELECT id, name, email, subscription_tier, 
-                   subscription_start, subscription_end, created_at
-            FROM users 
-            ORDER BY created_at DESC
-        """, conn)
-        conn.close()
+        st.markdown(f"**Showing {len(filtered_deals)} of {len(deals)} deals**")
         
-        if not users_df.empty:
-            st.dataframe(users_df, use_container_width=True)
-            
-            # User stats
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Users", len(users_df))
-            with col2:
-                active_subs = len(users_df[users_df['subscription_tier'] != 'none'])
-                st.metric("Active Subscriptions", active_subs)
-            with col3:
-                starter_users = len(users_df[users_df['subscription_tier'] == 'starter'])
-                st.metric("Starter Plan", starter_users)
-            with col4:
-                pro_users = len(users_df[users_df['subscription_tier'] == 'professional'])
-                st.metric("Professional Plan", pro_users)
-        else:
-            st.info("No users registered yet.")
-    
-    with tab3:
-        st.markdown("## Analytics & Insights")
-        
-        deals = db.get_all_deals()
-        
-        if deals:
-            # Deal analytics
-            deal_types = {}
-            profit_margins = []
-            monthly_deals = {}
-            
-            for deal in deals:
-                # Deal type distribution
-                deal_type = deal['deal_type']
-                deal_types[deal_type] = deal_types.get(deal_type, 0) + 1
+        for deal in filtered_deals:
+            with st.expander(f"🏠 {deal['property_address']} | Student: {deal['user_name']} | ${deal['arv']:,.0f} ARV | {deal['profit_margin']:.1f}% Profit"):
+                col1, col2 = st.columns(2)
                 
-                # Profit margins
-                if deal['profit_margin']:
-                    profit_margins.append(deal['profit_margin'])
+                with col1:
+                    st.markdown(f"""
+                    **Property Information:**
+                    - Address: {deal['property_address']}, {deal['city']}, {deal['state']} {deal['zip_code']}
+                    - Type: {deal['property_type']} | Bedrooms: {deal['bedrooms']} | Bathrooms: {deal['bathrooms']}
+                    - Square Feet: {deal['square_feet']:,} | Year Built: {deal['year_built']}
+                    - Condition: {deal['current_condition']}
+                    
+                    **Financial Details:**
+                    - ARV: ${deal['arv']:,.2f}
+                    - Purchase Price: ${deal['acquisition_cost']:,.2f}
+                    - Repair Costs: ${deal['repair_costs']:,.2f}
+                    - Profit Margin: {deal['profit_margin']:.1f}%
+                    """)
                 
-                # Monthly deals
-                month = deal['created_at'][:7]  # YYYY-MM
-                monthly_deals[month] = monthly_deals.get(month, 0) + 1
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("### Deal Type Distribution")
-                if deal_types:
-                    chart_data = pd.DataFrame(list(deal_types.items()), columns=['Deal Type', 'Count'])
-                    st.bar_chart(chart_data.set_index('Deal Type'))
-            
-            with col2:
-                st.markdown("### Average Metrics")
-                if profit_margins:
-                    avg_profit = sum(profit_margins) / len(profit_margins)
-                    st.metric("Average Profit Margin", f"{avg_profit:.1f}%")
+                with col2:
+                    st.markdown(f"""
+                    **Student Information:**
+                    - Name: {deal['user_name']}
+                    - Email: {deal['user_email']}
+                    - User ID: {deal['user_id']}
+                    
+                    **Seller Contact:**
+                    - Name: {deal['contact_name'] or 'N/A'}
+                    - Phone: {deal['contact_phone'] or 'N/A'}
+                    - Email: {deal['contact_email'] or 'N/A'}
+                    
+                    **Deal Status:** {deal['status'].title()}
+                    **Submitted:** {deal['created_at'][:10]}
+                    """)
                 
-                total_arv = sum(deal['arv'] for deal in deals if deal['arv'])
-                avg_arv = total_arv / len(deals) if deals else 0
-                st.metric("Average ARV", f"${avg_arv:,.0f}")
-            
-            # Monthly trends
-            if monthly_deals:
-                st.markdown("### Monthly Deal Submissions")
-                chart_data = pd.DataFrame(list(monthly_deals.items()), columns=['Month', 'Deals'])
-                st.line_chart(chart_data.set_index('Month'))
-        else:
-            st.info("No deals data available for analytics.")
+                if deal['notes']:
+                    st.markdown(f"**Notes:** {deal['notes']}")
+                
+                # Admin actions
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if st.button("📞 Contact Student", key=f"contact_{deal['id']}"):
+                        st.success(f"Ready to contact {deal['user_name']} at {deal['user_email']} or call them directly!")
+                
+                with col2:
+                    if st.button("📄 View Contract", key=f"view_contract_{deal['id']}"):
+                        contract = ContractGenerator.generate_wholesale_contract(deal)
+                        st.text_area("Generated Contract", contract, height=200, key=f"admin_contract_{deal['id']}")
+    else:
+        st.info("No deals submitted yet.")
 
 def main():
     load_css()
@@ -1063,10 +801,6 @@ def main():
                 st.session_state.current_page = 'calculator'
                 st.rerun()
             
-            if st.button("📊 My Deals"):
-                st.session_state.current_page = 'my_deals'
-                st.rerun()
-            
             if user.get('is_admin'):
                 if st.button("⚙️ Admin Dashboard"):
                     st.session_state.current_page = 'admin'
@@ -1084,8 +818,6 @@ def main():
             show_home_page()
         elif st.session_state.current_page == 'calculator':
             show_deal_calculator()
-        elif st.session_state.current_page == 'my_deals':
-            show_my_deals()
         elif st.session_state.current_page == 'admin' and user.get('is_admin'):
             show_admin_dashboard()
         else:
