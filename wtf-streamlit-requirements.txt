@@ -1,0 +1,364 @@
+# requirements.txt
+streamlit>=1.28.0
+pandas>=1.5.0
+numpy>=1.24.0
+plotly>=5.15.0
+requests>=2.28.0
+openai>=0.27.0
+sqlite3
+hashlib
+uuid
+asyncio
+dataclasses
+typing
+datetime
+
+# Additional dependencies for full functionality
+Pillow>=9.0.0
+python-dotenv>=0.19.0
+bcrypt>=3.2.0
+jwt>=1.3.1
+sqlalchemy>=1.4.0
+psycopg2-binary>=2.9.0  # For PostgreSQL support
+stripe>=5.4.0
+twilio>=8.2.0
+discord.py>=2.3.0
+celery>=5.3.0  # For background tasks
+redis>=4.5.0   # For caching
+boto3>=1.26.0  # For AWS S3 integration
+
+# .streamlit/config.toml
+[global]
+# Show warning when using deprecated features
+showWarningOnDirectExecution = false
+
+[server]
+# Port for the server to listen on
+port = 8501
+
+# The address to serve the app on
+address = "0.0.0.0"
+
+# Whether to enable CORS protection
+enableCORS = false
+
+# Whether to enable XSRF protection
+enableXsrfProtection = true
+
+# Max upload size in MB
+maxUploadSize = 200
+
+# Whether to enable WebSocket compression
+enableWebsocketCompression = false
+
+[browser]
+# Whether to gather usage stats
+gatherUsageStats = false
+
+# Whether to server static files
+serverAddress = "localhost"
+
+# .streamlit/secrets.toml
+# Database Configuration
+[database]
+url = "sqlite:///wtf_platform.db"
+# For PostgreSQL: "postgresql://username:password@localhost:5432/wtf_platform"
+
+# API Keys (replace with your actual keys)
+[api_keys]
+openai_api_key = "sk-your-openai-api-key-here"
+attom_api_key = "your-attom-data-api-key"
+zillow_api_key = "your-zillow-api-key"
+
+# Email Configuration
+[email]
+sendgrid_api_key = "SG.your-sendgrid-api-key"
+from_email = "noreply@wholesale2flip.com"
+
+# SMS Configuration
+[sms]
+twilio_account_sid = "AC-your-twilio-account-sid"
+twilio_auth_token = "your-twilio-auth-token"
+twilio_phone_number = "+1234567890"
+
+# Payment Processing
+[payments]
+stripe_publishable_key = "pk_test_your-stripe-publishable-key"
+stripe_secret_key = "sk_test_your-stripe-secret-key"
+stripe_webhook_secret = "whsec_your-webhook-secret"
+
+# Discord Integration
+[discord]
+bot_token = "your-discord-bot-token"
+client_id = "your-discord-client-id"
+client_secret = "your-discord-client-secret"
+
+# AWS Configuration (for file storage)
+[aws]
+access_key_id = "your-aws-access-key"
+secret_access_key = "your-aws-secret-key"
+bucket_name = "wtf-platform-files"
+region = "us-east-1"
+
+# Authentication
+[auth]
+secret_key = "your-super-secret-key-for-jwt-tokens"
+algorithm = "HS256"
+access_token_expire_minutes = 30
+
+# .env.example
+# Database
+DATABASE_URL=sqlite:///wtf_platform.db
+# For PostgreSQL: postgresql://username:password@localhost:5432/wtf_platform
+
+# API Keys
+OPENAI_API_KEY=sk-your-openai-api-key-here
+ATTOM_API_KEY=your-attom-data-api-key
+ZILLOW_API_KEY=your-zillow-api-key
+
+# Email Service
+SENDGRID_API_KEY=SG.your-sendgrid-api-key
+FROM_EMAIL=noreply@wholesale2flip.com
+
+# SMS Service
+TWILIO_ACCOUNT_SID=AC-your-twilio-account-sid
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_PHONE_NUMBER=+1234567890
+
+# Payment Processing
+STRIPE_PUBLISHABLE_KEY=pk_test_your-stripe-publishable-key
+STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
+STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
+
+# Discord
+DISCORD_BOT_TOKEN=your-discord-bot-token
+DISCORD_CLIENT_ID=your-discord-client-id
+DISCORD_CLIENT_SECRET=your-discord-client-secret
+
+# AWS
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+AWS_BUCKET_NAME=wtf-platform-files
+AWS_REGION=us-east-1
+
+# Authentication
+SECRET_KEY=your-super-secret-key-for-jwt-tokens
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# setup_instructions.txt
+WTF Platform Setup Instructions
+================================
+
+1. INSTALL DEPENDENCIES
+   pip install -r requirements.txt
+
+2. CONFIGURE ENVIRONMENT
+   - Copy .env.example to .env
+   - Fill in your API keys and configuration
+   - Update .streamlit/secrets.toml with your secrets
+
+3. DATABASE SETUP
+   - The app will automatically create SQLite database
+   - For PostgreSQL, update DATABASE_URL in config
+
+4. API KEY SETUP
+   Required API keys:
+   - OpenAI API key (for AI features)
+   - ATTOM Data API (for property data)
+   - Zillow API (for property valuations)
+   - SendGrid API (for email notifications)
+   - Twilio (for SMS notifications)
+   - Stripe (for payment processing)
+
+5. RUN THE APPLICATION
+   streamlit run app.py
+
+6. DEFAULT LOGIN CREDENTIALS
+   Admin: admin / admin123
+   Wholesaler: wholesaler / wholesale123
+   Buyer: buyer / buyer123
+
+7. FEATURES INCLUDED
+   ✅ Property Search & Analysis
+   ✅ Buyer Network Management
+   ✅ AI Assistant (ScriptMaster, Underwriter, General)
+   ✅ Dashboard with Key Metrics
+   ✅ Authentication System
+   ✅ Database Integration
+   ✅ Responsive Design
+   ✅ Real-time Analysis
+
+8. DEPLOYMENT
+   For production deployment:
+   - Use PostgreSQL instead of SQLite
+   - Set up proper authentication
+   - Configure HTTPS
+   - Use Redis for caching
+   - Set up background task processing
+
+# README.md
+# WTF - Wholesale2Flip Platform
+
+Advanced real estate wholesaling platform built with Streamlit, featuring AI-powered property analysis, buyer matching, and automated workflows.
+
+## Features
+
+### 🏠 Property Analysis
+- Instant ARV calculations
+- Rehab cost estimation  
+- Comparable sales analysis
+- Profit potential assessment
+- 70% rule calculations
+
+### 👥 Buyer Network
+- Verified cash buyer database
+- Smart buyer matching algorithm
+- Proof of funds verification
+- Multi-criteria filtering
+
+### 🤖 AI Assistant
+- **ScriptMaster AI**: Cold calling scripts & objection handling
+- **Underwriter GPT**: Investment analysis & underwriting
+- **General Assistant**: Real estate wholesaling guidance
+
+### 📊 Analytics Dashboard
+- Deal pipeline tracking
+- Revenue metrics
+- Buyer activity analytics
+- Market trend analysis
+
+### ⚡ Lightning Features
+- Real-time property analysis
+- Instant buyer notifications
+- Automated follow-up sequences
+- Mobile-responsive design
+
+## Quick Start
+
+1. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Configure Environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
+
+3. **Run Application**
+   ```bash
+   streamlit run app.py
+   ```
+
+4. **Access Platform**
+   - Open http://localhost:8501
+   - Login with demo credentials (see setup_instructions.txt)
+
+## Technology Stack
+
+- **Frontend**: Streamlit with custom CSS
+- **Backend**: Python with SQLite/PostgreSQL
+- **AI**: OpenAI GPT-4 integration
+- **Analytics**: Plotly for data visualization
+- **Authentication**: Session-based auth system
+- **Database**: SQLite (development) / PostgreSQL (production)
+
+## API Integrations
+
+- **Property Data**: ATTOM Data, Zillow API
+- **AI Services**: OpenAI GPT-4
+- **Email**: SendGrid
+- **SMS**: Twilio
+- **Payments**: Stripe
+- **Discord**: Bot integration for notifications
+
+## Project Structure
+
+```
+wtf-platform/
+├── app.py                 # Main Streamlit application
+├── requirements.txt       # Python dependencies
+├── .streamlit/
+│   ├── config.toml       # Streamlit configuration
+│   └── secrets.toml      # API keys and secrets
+├── .env.example          # Environment variables template
+├── setup_instructions.txt # Setup guide
+├── README.md             # Project documentation
+└── wtf_platform.db      # SQLite database (auto-created)
+```
+
+## Key Components
+
+### 1. Property Analyzer
+- ARV calculation using comparable sales
+- Rehab cost estimation based on condition
+- Maximum offer calculation (70% rule)
+- ROI and profit potential analysis
+
+### 2. Buyer Matcher
+- Multi-criteria matching algorithm
+- Verification status tracking
+- Match score calculation
+- Automated buyer notifications
+
+### 3. AI Assistant
+- Context-aware responses
+- Role-specific prompts
+- Training material integration
+- Conversation history
+
+### 4. Database Manager
+- SQLite for development
+- PostgreSQL for production
+- Automated table creation
+- Data relationship management
+
+## Demo Credentials
+
+- **Admin**: admin / admin123
+- **Wholesaler**: wholesaler / wholesale123  
+- **Buyer**: buyer / buyer123
+
+## Deployment
+
+### Local Development
+```bash
+streamlit run app.py
+```
+
+### Production Deployment
+1. Use PostgreSQL database
+2. Configure environment variables
+3. Set up reverse proxy (nginx)
+4. Enable HTTPS
+5. Configure monitoring
+
+### Docker Deployment
+```bash
+docker build -t wtf-platform .
+docker run -p 8501:8501 wtf-platform
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch
+3. Make changes
+4. Submit pull request
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Support
+
+For support and questions:
+- Email: support@wholesale2flip.com
+- Discord: [Community Server](https://discord.gg/aKXkEDUH)
+- GitHub: [Issues](https://github.com/TheTreasury832/WTF-BuyBox/issues)
+
+---
+
+**WTF - Wholesale2Flip: Wholesaling on Steroids! 🚀**

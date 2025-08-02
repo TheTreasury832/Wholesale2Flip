@@ -1,0 +1,487 @@
+# Dockerfile
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    software-properties-common \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p .streamlit
+
+# Initialize database
+RUN python database_init.py
+
+# Expose port
+EXPOSE 8501
+
+# Health check
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+
+# Run the application
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
+# docker-compose.yml
+version: '3.8'
+
+services:
+  wtf-app:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=postgresql://wtf_user:wtf_pass@db:5432/wtf_platform
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: wtf_platform
+      POSTGRES_USER: wtf_user
+      POSTGRES_PASSWORD: wtf_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - wtf-app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+# nginx.conf
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream wtf_app {
+        server wtf-app:8501;
+    }
+
+    server {
+        listen 80;
+        server_name localhost;
+
+        location / {
+            proxy_pass http://wtf_app;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /_stcore/stream {
+            proxy_pass http://wtf_app/_stcore/stream;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+}
+
+# deploy.sh
+#!/bin/bash
+
+# WTF Platform Deployment Script
+
+echo "🚀 Deploying WTF Platform..."
+
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker is not installed. Please install Docker first."
+    exit 1
+fi
+
+# Check if Docker Compose is installed
+if ! command -v docker-compose &> /dev/null; then
+    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
+    exit 1
+fi
+
+# Create necessary directories
+mkdir -p data ssl logs
+
+# Copy environment file
+if [ ! -f .env ]; then
+    cp .env.example .env
+    echo "⚠️  Please edit .env file with your configuration before continuing."
+    echo "Press any key to continue after editing .env..."
+    read -n 1
+fi
+
+# Build and start services
+echo "🏗️  Building Docker images..."
+docker-compose build
+
+echo "🚀 Starting services..."
+docker-compose up -d
+
+# Wait for services to be ready
+echo "⏳ Waiting for services to start..."
+sleep 30
+
+# Check if services are running
+if docker-compose ps | grep -q "Up"; then
+    echo "✅ Services started successfully!"
+    echo ""
+    echo "🌐 Your WTF Platform is now available at:"
+    echo "   http://localhost"
+    echo ""
+    echo "📊 Service Status:"
+    docker-compose ps
+    echo ""
+    echo "📝 To view logs: docker-compose logs -f"
+    echo "🛑 To stop services: docker-compose down"
+else
+    echo "❌ Failed to start services. Check logs:"
+    docker-compose logs
+fi
+
+# run_local.py
+"""
+Local development server runner
+"""
+
+import subprocess
+import sys
+import os
+from pathlib import Path
+
+def check_dependencies():
+    """Check if all dependencies are installed"""
+    try:
+        import streamlit
+        import pandas
+        import plotly
+        import openai
+        print("✅ All dependencies are installed")
+        return True
+    except ImportError as e:
+        print(f"❌ Missing dependency: {e}")
+        print("Run: pip install -r requirements.txt")
+        return False
+
+def initialize_database():
+    """Initialize the database with sample data"""
+    if not Path("wtf_platform.db").exists():
+        print("🗄️  Initializing database...")
+        try:
+            import database_init
+            database_init.create_sample_data()
+            print("✅ Database initialized with sample data")
+        except Exception as e:
+            print(f"❌ Database initialization failed: {e}")
+            return False
+    return True
+
+def run_streamlit():
+    """Run the Streamlit application"""
+    print("🚀 Starting WTF Platform...")
+    print("📱 Opening browser at http://localhost:8501")
+    print("🔑 Demo login: admin / admin123")
+    print("")
+    
+    try:
+        subprocess.run([
+            sys.executable, "-m", "streamlit", "run", "app.py",
+            "--server.port=8501",
+            "--server.address=localhost",
+            "--browser.gatherUsageStats=false"
+        ])
+    except KeyboardInterrupt:
+        print("\n👋 Shutting down WTF Platform...")
+    except Exception as e:
+        print(f"❌ Failed to start application: {e}")
+
+def main():
+    """Main entry point"""
+    print("🏠 WTF Platform - Local Development Server")
+    print("=" * 50)
+    
+    if not check_dependencies():
+        sys.exit(1)
+    
+    if not initialize_database():
+        sys.exit(1)
+    
+    run_streamlit()
+
+if __name__ == "__main__":
+    main()
+
+# init.sql
+-- PostgreSQL initialization script for WTF Platform
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    phone VARCHAR(20),
+    role VARCHAR(20) DEFAULT 'wholesaler',
+    subscription_tier VARCHAR(20) DEFAULT 'free',
+    is_active BOOLEAN DEFAULT true,
+    is_verified BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login_at TIMESTAMP
+);
+
+-- Properties table
+CREATE TABLE IF NOT EXISTS properties (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    address VARCHAR(255) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    state VARCHAR(2) NOT NULL,
+    zip_code VARCHAR(10) NOT NULL,
+    property_type VARCHAR(50) NOT NULL,
+    bedrooms INTEGER,
+    bathrooms DECIMAL(3,1),
+    square_feet INTEGER,
+    year_built INTEGER,
+    condition VARCHAR(20),
+    list_price DECIMAL(12,2),
+    market_value DECIMAL(12,2),
+    arv DECIMAL(12,2) DEFAULT 0,
+    rehab_cost DECIMAL(12,2) DEFAULT 0,
+    max_offer DECIMAL(12,2) DEFAULT 0,
+    profit_potential DECIMAL(12,2) DEFAULT 0,
+    photos TEXT[],
+    documents TEXT[],
+    analysis_data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Buyers table
+CREATE TABLE IF NOT EXISTS buyers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    property_types VARCHAR(255)[],
+    min_price DECIMAL(12,2),
+    max_price DECIMAL(12,2),
+    min_bedrooms INTEGER,
+    max_bedrooms INTEGER,
+    min_bathrooms DECIMAL(3,1),
+    max_bathrooms DECIMAL(3,1),
+    states VARCHAR(2)[],
+    cities VARCHAR(100)[],
+    zip_codes VARCHAR(10)[],
+    deal_types VARCHAR(50)[],
+    min_roi DECIMAL(5,2),
+    min_cash_flow DECIMAL(10,2),
+    max_rehab_cost DECIMAL(12,2),
+    has_proof_of_funds BOOLEAN DEFAULT false,
+    proof_of_funds_url VARCHAR(255),
+    strategy VARCHAR(255),
+    experience_level VARCHAR(50),
+    is_verified BOOLEAN DEFAULT false,
+    verified_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Leads table
+CREATE TABLE IF NOT EXISTS leads (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    email VARCHAR(255),
+    phone VARCHAR(20),
+    property_address VARCHAR(255) NOT NULL,
+    city VARCHAR(100),
+    state VARCHAR(2),
+    zip_code VARCHAR(10),
+    source VARCHAR(50),
+    status VARCHAR(20) DEFAULT 'new',
+    motivation VARCHAR(255),
+    timeline VARCHAR(100),
+    situation TEXT,
+    last_contact TIMESTAMP,
+    next_follow_up TIMESTAMP,
+    contact_count INTEGER DEFAULT 0,
+    lead_score INTEGER DEFAULT 0,
+    ai_analysis JSONB,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Deals table
+CREATE TABLE IF NOT EXISTS deals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
+    lead_id UUID REFERENCES leads(id) ON DELETE SET NULL,
+    buyer_id UUID REFERENCES buyers(id) ON DELETE SET NULL,
+    title VARCHAR(255) NOT NULL,
+    status VARCHAR(20) DEFAULT 'lead',
+    deal_type VARCHAR(50),
+    purchase_price DECIMAL(12,2),
+    arv_price DECIMAL(12,2),
+    rehab_cost DECIMAL(12,2),
+    assignment_fee DECIMAL(12,2),
+    seller_financing JSONB,
+    contract_date TIMESTAMP,
+    closing_date TIMESTAMP,
+    earnest_money DECIMAL(12,2),
+    inspection_period INTEGER,
+    seller_info JSONB,
+    buyer_info JSONB,
+    tc_info JSONB,
+    milestones JSONB,
+    tasks JSONB,
+    notes TEXT,
+    communication_log JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Contracts table
+CREATE TABLE IF NOT EXISTS contracts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    deal_id UUID REFERENCES deals(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'draft',
+    template_id UUID,
+    purchase_price DECIMAL(12,2) NOT NULL,
+    earnest_money DECIMAL(12,2),
+    closing_date TIMESTAMP,
+    inspection_period INTEGER,
+    contingencies VARCHAR(255)[],
+    buyer_info JSONB NOT NULL,
+    seller_info JSONB NOT NULL,
+    agent_info JSONB,
+    terms JSONB,
+    document_url VARCHAR(255),
+    signed_url VARCHAR(255),
+    is_executed BOOLEAN DEFAULT false,
+    executed_at TIMESTAMP,
+    signatures JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Activities table
+CREATE TABLE IF NOT EXISTS activities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    lead_id UUID REFERENCES leads(id) ON DELETE SET NULL,
+    deal_id UUID REFERENCES deals(id) ON DELETE SET NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    outcome TEXT,
+    scheduled_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    is_completed BOOLEAN DEFAULT false,
+    contact_name VARCHAR(100),
+    contact_phone VARCHAR(20),
+    contact_email VARCHAR(255),
+    follow_up_date TIMESTAMP,
+    follow_up_note TEXT,
+    ai_summary TEXT,
+    sentiment VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Notifications table
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    priority VARCHAR(20) DEFAULT 'normal',
+    is_read BOOLEAN DEFAULT false,
+    read_at TIMESTAMP,
+    action_url VARCHAR(255),
+    action_label VARCHAR(100),
+    channels VARCHAR(20)[],
+    sent_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_properties_user_id ON properties(user_id);
+CREATE INDEX IF NOT EXISTS idx_properties_city_state ON properties(city, state);
+CREATE INDEX IF NOT EXISTS idx_buyers_user_id ON buyers(user_id);
+CREATE INDEX IF NOT EXISTS idx_buyers_verified ON buyers(is_verified);
+CREATE INDEX IF NOT EXISTS idx_leads_user_id ON leads(user_id);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+CREATE INDEX IF NOT EXISTS idx_deals_user_id ON deals(user_id);
+CREATE INDEX IF NOT EXISTS idx_deals_status ON deals(status);
+CREATE INDEX IF NOT EXISTS idx_contracts_user_id ON contracts(user_id);
+CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
+
+-- Insert default admin user
+INSERT INTO users (email, password_hash, first_name, last_name, role, subscription_tier, is_verified)
+VALUES (
+    'admin@wholesale2flip.com',
+    'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', -- 'admin123' hashed
+    'Admin',
+    'User',
+    'admin',
+    'enterprise',
+    true
+) ON CONFLICT (email) DO NOTHING;
