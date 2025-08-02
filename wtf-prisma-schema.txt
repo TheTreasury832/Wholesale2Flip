@@ -1,0 +1,786 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  WHOLESALER
+  BUYER
+  AGENT
+  INVESTOR
+}
+
+enum SubscriptionTier {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum PropertyType {
+  SINGLE_FAMILY
+  MULTI_FAMILY
+  CONDO
+  TOWNHOUSE
+  LAND
+  COMMERCIAL
+  MOBILE_HOME
+}
+
+enum PropertyCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  NEEDS_REHAB
+}
+
+enum DealType {
+  CASH
+  CREATIVE
+  SUBJECT_TO
+  SELLER_FINANCE
+  LEASE_OPTION
+}
+
+enum DealStatus {
+  LEAD
+  UNDER_CONTRACT
+  PENDING
+  CLOSED
+  CANCELLED
+}
+
+enum LeadSource {
+  DRIVING_FOR_DOLLARS
+  DIRECT_MAIL
+  COLD_CALLING
+  PPC
+  SEO
+  REFERRAL
+  SOCIAL_MEDIA
+  LIGHTNING_LEADS
+  IMPORTED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  INTERESTED
+  NOT_INTERESTED
+  CALLBACK
+  DEAL
+  DEAD
+}
+
+model User {
+  id                String           @id @default(cuid())
+  email             String           @unique
+  emailVerified     DateTime?
+  name              String?
+  image             String?
+  phone             String?
+  role              UserRole         @default(WHOLESALER)
+  subscriptionTier  SubscriptionTier @default(FREE)
+  stripeCustomerId  String?          @unique
+  isActive          Boolean          @default(true)
+  
+  // Profile fields
+  firstName         String?
+  lastName          String?
+  businessName      String?
+  bio               String?
+  website           String?
+  linkedIn          String?
+  facebook          String?
+  instagram         String?
+  
+  // Address
+  address           String?
+  city              String?
+  state             String?
+  zipCode           String?
+  country           String?          @default("US")
+  
+  // Preferences
+  timezone          String?          @default("America/New_York")
+  notifications     Json?            // Notification preferences
+  preferences       Json?            // User preferences
+  
+  // Timestamps
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  lastLoginAt       DateTime?
+  
+  // Relations
+  accounts          Account[]
+  sessions          Session[]
+  properties        Property[]
+  buyerProfile      BuyerProfile?
+  leads             Lead[]
+  deals             Deal[]
+  contracts         Contract[]
+  activities        Activity[]
+  notifications     Notification[]
+  subscriptions     Subscription[]
+  
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Property {
+  id                String            @id @default(cuid())
+  
+  // Basic Info
+  address           String
+  city              String
+  state             String
+  zipCode           String
+  county            String?
+  latitude          Float?
+  longitude         Float?
+  
+  // Property Details
+  propertyType      PropertyType
+  bedrooms          Int?
+  bathrooms         Float?
+  squareFeet        Int?
+  lotSize           Float?
+  yearBuilt         Int?
+  condition         PropertyCondition?
+  
+  // Financial Data
+  listPrice         Float?
+  marketValue       Float?
+  arv               Float?             // After Repair Value
+  rehabCost         Float?
+  maxOffer          Float?
+  rent              Float?
+  taxes             Float?
+  insurance         Float?
+  hoa               Float?
+  
+  // Property Data
+  mls               String?
+  parcelNumber      String?
+  ownerName         String?
+  ownerPhone        String?
+  ownerEmail        String?
+  ownerAddress      String?
+  
+  // Photos & Documents
+  photos            String[]
+  documents         String[]
+  
+  // Analysis
+  dealType          DealType?
+  profitPotential   Float?
+  capRate           Float?
+  cashFlow          Float?
+  roi               Float?
+  analysisData      Json?              // Detailed analysis results
+  
+  // Timestamps
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  comps             Comp[]
+  deals             Deal[]
+  
+  @@map("properties")
+}
+
+model BuyerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  
+  // Buy Box Criteria
+  propertyTypes     PropertyType[]
+  minPrice          Float?
+  maxPrice          Float?
+  minBedrooms       Int?
+  maxBedrooms       Int?
+  minBathrooms      Float?
+  maxBathrooms      Float?
+  minSquareFeet     Int?
+  maxSquareFeet     Int?
+  minYearBuilt      Int?
+  maxYearBuilt      Int?
+  
+  // Location Preferences
+  states            String[]
+  cities            String[]
+  zipCodes          String[]
+  maxRadius         Int?               // Miles from specified location
+  
+  // Financial Criteria
+  dealTypes         DealType[]
+  minROI            Float?
+  minCashFlow       Float?
+  maxRehabCost      Float?
+  hasProofOfFunds   Boolean           @default(false)
+  proofOfFundsUrl   String?
+  maxLTV            Float?
+  
+  // Investment Strategy
+  strategy          String?           // Fix & Flip, Buy & Hold, etc.
+  experienceLevel   String?
+  portfolioSize     Int?
+  
+  // Contact Preferences
+  preferredContact  String?           // email, phone, text
+  timeZone          String?
+  availableHours    String?
+  
+  // Verification
+  isVerified        Boolean           @default(false)
+  verifiedAt        DateTime?
+  
+  // Timestamps
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  user              User              @relation(fields: [userId], references: [id])
+  deals             Deal[]
+  
+  @@map("buyer_profiles")
+}
+
+model Lead {
+  id                String      @id @default(cuid())
+  
+  // Basic Info
+  firstName         String?
+  lastName          String?
+  email             String?
+  phone             String?
+  
+  // Property Info
+  propertyAddress   String
+  city              String
+  state             String
+  zipCode           String
+  
+  // Lead Details
+  source            LeadSource
+  status            LeadStatus      @default(NEW)
+  motivation        String?
+  timeline          String?
+  situation         String?
+  
+  // Contact History
+  lastContact       DateTime?
+  nextFollowUp      DateTime?
+  contactCount      Int             @default(0)
+  notes             String?
+  
+  // Scoring & AI
+  leadScore         Int?            // 0-100 score
+  aiAnalysis        Json?           // AI-generated insights
+  
+  // Marketing
+  campaign          String?
+  adGroup           String?
+  keyword           String?
+  
+  // Timestamps
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  // Relations
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  deal              Deal?
+  activities        Activity[]
+  
+  @@map("leads")
+}
+
+model Deal {
+  id                String      @id @default(cuid())
+  
+  // Basic Info
+  title             String
+  status            DealStatus  @default(LEAD)
+  dealType          DealType
+  
+  // Financial Details
+  purchasePrice     Float
+  arvPrice          Float?
+  rehabCost         Float?
+  assignmentFee     Float?
+  sellerFinancing   Json?       // Terms for seller financing
+  
+  // Contract Details
+  contractDate      DateTime?
+  closingDate       DateTime?
+  earnestMoney      Float?
+  inspectionPeriod  Int?        // Days
+  
+  // Parties
+  sellerName        String?
+  sellerPhone       String?
+  sellerEmail       String?
+  buyerName         String?
+  buyerPhone        String?
+  buyerEmail        String?
+  
+  // Transaction Coordinator
+  tcName            String?
+  tcEmail           String?
+  tcPhone           String?
+  
+  // Progress Tracking
+  milestones        Json?       // Key milestones and dates
+  tasks             Json?       // Task list and completion
+  
+  // Documents
+  contracts         String[]    // Contract file URLs
+  documents         String[]    // Supporting documents
+  
+  // Notes & Communication
+  notes             String?
+  communicationLog  Json?       // Log of all communications
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relations
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  propertyId        String?
+  property          Property?   @relation(fields: [propertyId], references: [id])
+  leadId            String?     @unique
+  lead              Lead?       @relation(fields: [leadId], references: [id])
+  buyerId           String?
+  buyer             BuyerProfile? @relation(fields: [buyerId], references: [id])
+  contracts         Contract[]
+  activities        Activity[]
+  
+  @@map("deals")
+}
+
+model Contract {
+  id                String      @id @default(cuid())
+  
+  // Contract Info
+  type              String      // Purchase, Assignment, etc.
+  status            String      @default("draft")
+  templateId        String?
+  
+  // Contract Data
+  purchasePrice     Float
+  earnestMoney      Float?
+  closingDate       DateTime?
+  inspectionPeriod  Int?
+  contingencies     String[]
+  
+  // Parties
+  buyerInfo         Json        // Buyer details
+  sellerInfo        Json        // Seller details
+  agentInfo         Json?       // Agent details if applicable
+  
+  // Terms
+  financing         Json?       // Financing terms
+  repairs           Json?       // Repair agreements
+  inclusions        String[]    // What's included
+  exclusions        String[]    // What's excluded
+  
+  // Documents
+  documentUrl       String?     // Generated contract URL
+  signedUrl         String?     // Signed contract URL
+  
+  // Execution
+  isExecuted        Boolean     @default(false)
+  executedAt        DateTime?
+  
+  // E-signature
+  signatures        Json?       // Signature data
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relations
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  dealId            String
+  deal              Deal        @relation(fields: [dealId], references: [id])
+  
+  @@map("contracts")
+}
+
+model Comp {
+  id                String      @id @default(cuid())
+  
+  // Property Info
+  address           String
+  city              String
+  state             String
+  zipCode           String
+  
+  // Details
+  bedrooms          Int?
+  bathrooms         Float?
+  squareFeet        Int?
+  lotSize           Float?
+  yearBuilt         Int?
+  
+  // Sale Info
+  salePrice         Float
+  saleDate          DateTime
+  daysOnMarket      Int?
+  pricePerSqFt      Float?
+  
+  // Distance from subject
+  distance          Float?      // Miles
+  
+  // Data Source
+  source            String      // MLS, Public Records, etc.
+  mlsNumber         String?
+  
+  // Adjustments for CMA
+  adjustments       Json?       // Price adjustments made
+  adjustedPrice     Float?
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relations
+  propertyId        String
+  property          Property    @relation(fields: [propertyId], references: [id])
+  
+  @@map("comps")
+}
+
+model Activity {
+  id                String      @id @default(cuid())
+  
+  // Activity Details
+  type              String      // call, email, meeting, etc.
+  title             String
+  description       String?
+  outcome           String?
+  
+  // Scheduling
+  scheduledAt       DateTime?
+  completedAt       DateTime?
+  isCompleted       Boolean     @default(false)
+  
+  // Contact Info
+  contactName       String?
+  contactPhone      String?
+  contactEmail      String?
+  
+  // Follow-up
+  followUpDate      DateTime?
+  followUpNote      String?
+  
+  // AI Insights
+  aiSummary         String?
+  sentiment         String?     // positive, neutral, negative
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relations
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  leadId            String?
+  lead              Lead?       @relation(fields: [leadId], references: [id])
+  dealId            String?
+  deal              Deal?       @relation(fields: [dealId], references: [id])
+  
+  @@map("activities")
+}
+
+model Notification {
+  id                String      @id @default(cuid())
+  
+  // Notification Details
+  type              String      // deal_alert, task_reminder, etc.
+  title             String
+  message           String
+  priority          String      @default("normal") // low, normal, high, urgent
+  
+  // Status
+  isRead            Boolean     @default(false)
+  readAt            DateTime?
+  
+  // Action
+  actionUrl         String?
+  actionLabel       String?
+  
+  // Delivery
+  channels          String[]    // email, sms, push, discord
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relations
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  
+  @@map("notifications")
+}
+
+model Subscription {
+  id                String      @id @default(cuid())
+  
+  // Stripe Info
+  stripeSubscriptionId String   @unique
+  stripePriceId     String
+  stripeCurrentPeriodEnd DateTime
+  stripeCurrentPeriodStart DateTime
+  
+  // Subscription Details
+  tier              SubscriptionTier
+  status            String      // active, canceled, past_due, etc.
+  
+  // Features
+  features          Json?       // Enabled features
+  limits            Json?       // Usage limits
+  
+  // Billing
+  amount            Float
+  currency          String      @default("usd")
+  interval          String      // month, year
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  canceledAt        DateTime?
+  
+  // Relations
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  
+  @@map("subscriptions")
+}
+
+model LightningLead {
+  id                String      @id @default(cuid())
+  
+  // Lead Info
+  firstName         String?
+  lastName          String?
+  email             String?
+  phone             String?
+  
+  // Property Info
+  address           String
+  city              String
+  state             String
+  zipCode           String
+  propertyType      PropertyType
+  
+  // Motivation & Situation
+  motivation        String[]    // Multiple motivations
+  timeline          String?
+  condition         PropertyCondition?
+  
+  // Financial
+  currentValue      Float?
+  owedAmount        Float?
+  monthlyPayment    Float?
+  
+  // Lead Quality Score
+  qualityScore      Int         // 1-10 score
+  hotness           String      // cold, warm, hot, fire
+  
+  // AI Analysis
+  aiInsights        Json?       // AI-generated insights
+  recommendations   String[]    // Recommended actions
+  
+  // Marketing Data
+  source            String?
+  campaign          String?
+  cost              Float?      // Cost to acquire
+  
+  // Assignment
+  assignedTo        String?     // User ID
+  assignedAt        DateTime?
+  
+  // Status
+  status            LeadStatus  @default(NEW)
+  contacted         Boolean     @default(false)
+  converted         Boolean     @default(false)
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@map("lightning_leads")
+}
+
+model MarketData {
+  id                String      @id @default(cuid())
+  
+  // Location
+  zipCode           String
+  city              String
+  state             String
+  
+  // Market Metrics
+  medianHomeValue   Float?
+  averageDaysOnMarket Int?
+  pricePerSqFt      Float?
+  inventoryLevel    String?     // low, normal, high
+  
+  // Trends
+  priceChange30d    Float?      // Percentage change
+  priceChange90d    Float?
+  priceChangeYoY    Float?
+  
+  // Investment Metrics
+  averageRent       Float?
+  rentGrowthRate    Float?
+  capRate           Float?
+  priceToRentRatio  Float?
+  
+  // Demographics
+  population        Int?
+  medianIncome      Float?
+  unemploymentRate  Float?
+  
+  // Data Source & Freshness
+  dataSource        String
+  lastUpdated       DateTime
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@unique([zipCode, dataSource])
+  @@map("market_data")
+}
+
+model Template {
+  id                String      @id @default(cuid())
+  
+  // Template Info
+  name              String
+  type              String      // contract, email, sms, letter
+  category          String?     // seller, buyer, agent
+  
+  // Content
+  subject           String?     // For emails
+  content           String      // Template content with variables
+  variables         Json?       // Available variables
+  
+  // Usage
+  isActive          Boolean     @default(true)
+  isDefault         Boolean     @default(false)
+  usageCount        Int         @default(0)
+  
+  // Permissions
+  isPublic          Boolean     @default(false)
+  createdBy         String?     // User ID who created it
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@map("templates")
+}
+
+model SystemSetting {
+  id                String      @id @default(cuid())
+  key               String      @unique
+  value             Json
+  description       String?
+  category          String?
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@map("system_settings")
+}
+
+model AuditLog {
+  id                String      @id @default(cuid())
+  
+  // Action Details
+  action            String      // create, update, delete, etc.
+  entity            String      // property, lead, deal, etc.
+  entityId          String?
+  
+  // User Info
+  userId            String?
+  userEmail         String?
+  userRole          UserRole?
+  
+  // Request Info
+  ipAddress         String?
+  userAgent         String?
+  
+  // Changes
+  oldValues         Json?
+  newValues         Json?
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

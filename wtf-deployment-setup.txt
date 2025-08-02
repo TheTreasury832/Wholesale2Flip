@@ -1,0 +1,517 @@
+# Wholesale2Flip (WTF) Platform - Deployment & Setup Guide
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18.17.0 or higher
+- PostgreSQL database
+- Stripe account for payments
+- OpenAI API key
+- Email service (SendGrid recommended)
+- Optional: Discord bot token for integrations
+
+### 1. Clone and Install
+
+```bash
+git clone https://github.com/yourusername/wholesale2flip.git
+cd wholesale2flip
+npm install
+```
+
+### 2. Environment Setup
+
+Copy the example environment file and configure:
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in your environment variables:
+
+```env
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/wholesale2flip"
+DIRECT_URL="postgresql://username:password@localhost:5432/wholesale2flip"
+
+# Auth
+NEXTAUTH_SECRET="your-nextauth-secret-key-here"
+NEXTAUTH_URL="http://localhost:3000"
+
+# Google OAuth (Optional)
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+
+# Stripe
+STRIPE_PUBLISHABLE_KEY="pk_test_..."
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+
+# OpenAI
+OPENAI_API_KEY="sk-..."
+
+# Property Data APIs
+ATTOM_API_KEY="your-attom-key"
+ZILLOW_API_KEY="your-zillow-key"
+
+# Email Service
+SENDGRID_API_KEY="SG..."
+FROM_EMAIL="noreply@wholesale2flip.com"
+
+# Communication
+TWILIO_ACCOUNT_SID="AC..."
+TWILIO_AUTH_TOKEN="..."
+
+# Discord Integration
+DISCORD_BOT_TOKEN="..."
+DISCORD_CLIENT_ID="..."
+DISCORD_CLIENT_SECRET="..."
+
+# File Storage (AWS S3 or Vercel Blob)
+AWS_ACCESS_KEY_ID="..."
+AWS_SECRET_ACCESS_KEY="..."
+AWS_BUCKET_NAME="wholesale2flip-files"
+
+# Analytics
+POSTHOG_KEY="..."
+SENTRY_DSN="..."
+```
+
+### 3. Database Setup
+
+Initialize the database:
+
+```bash
+# Generate Prisma client
+npx prisma generate
+
+# Run database migrations
+npx prisma migrate dev
+
+# Seed the database (optional)
+npm run db:seed
+```
+
+### 4. Development Server
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Visit `http://localhost:3000` to see the application.
+
+## 🏗️ Production Deployment
+
+### Vercel Deployment (Recommended)
+
+1. **Connect to Vercel:**
+   ```bash
+   npm i -g vercel
+   vercel login
+   vercel
+   ```
+
+2. **Configure Environment Variables:**
+   Add all environment variables in the Vercel dashboard.
+
+3. **Deploy:**
+   ```bash
+   vercel --prod
+   ```
+
+### Docker Deployment
+
+1. **Build the Docker image:**
+   ```bash
+   docker build -t wholesale2flip .
+   ```
+
+2. **Run with Docker Compose:**
+   ```bash
+   docker-compose up -d
+   ```
+
+### Manual Server Deployment
+
+1. **Build the application:**
+   ```bash
+   npm run build
+   ```
+
+2. **Start the production server:**
+   ```bash
+   npm start
+   ```
+
+## 🔧 Configuration
+
+### Stripe Setup
+
+1. Create a Stripe account at https://stripe.com
+2. Get your API keys from the Stripe dashboard
+3. Set up webhooks for subscription events:
+   - Endpoint: `https://yourdomain.com/api/webhooks/stripe`
+   - Events: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
+
+### OpenAI Setup
+
+1. Get an API key from https://platform.openai.com
+2. Ensure you have sufficient credits for API usage
+3. Consider setting usage limits to control costs
+
+### Email Configuration
+
+**SendGrid (Recommended):**
+1. Create account at https://sendgrid.com
+2. Verify your domain
+3. Get API key from settings
+
+**Alternative - SMTP:**
+Update the EmailService configuration in `src/lib/services/EmailService.ts`
+
+### Property Data APIs
+
+**ATTOM Data:**
+1. Sign up at https://api.developer.attomdata.com
+2. Subscribe to relevant data packages
+3. Get API key
+
+**Zillow API:**
+1. Apply for API access at https://www.zillow.com/developers/
+2. Get approved and receive API key
+
+### Discord Integration
+
+1. Create a Discord application at https://discord.com/developers/applications
+2. Create a bot and get the token
+3. Invite the bot to your server with appropriate permissions
+
+## 📊 Features Overview
+
+### Core Features
+- ✅ Property analysis with ARV calculation
+- ✅ Buyer matching algorithm
+- ✅ Contract generation with PDF output
+- ✅ Lead management and pipeline tracking
+- ✅ AI-powered insights and coaching
+- ✅ Discord integration for alerts
+- ✅ Subscription management with Stripe
+- ✅ Mobile-responsive PWA design
+
+### AI Features
+- ✅ ScriptMaster AI for sales coaching
+- ✅ Multifamily Underwriter GPT
+- ✅ Property analysis automation
+- ✅ Lead scoring and qualification
+
+### Integrations
+- ✅ Real estate data APIs (ATTOM, Zillow)
+- ✅ MLS integration capability
+- ✅ Email automation (SendGrid)
+- ✅ SMS notifications (Twilio)
+- ✅ Discord bot for community
+
+## 🛠️ Development
+
+### Project Structure
+```
+wholesale2flip/
+├── src/
+│   ├── app/              # Next.js App Router pages
+│   ├── components/       # Reusable React components
+│   ├── lib/             # Utilities and configurations
+│   ├── hooks/           # Custom React hooks
+│   ├── types/           # TypeScript type definitions
+│   └── store/           # State management (Zustand)
+├── prisma/              # Database schema and migrations
+├── public/              # Static assets
+└── docs/                # Documentation
+```
+
+### Available Scripts
+
+```bash
+# Development
+npm run dev              # Start development server
+npm run build           # Build for production
+npm run start           # Start production server
+
+# Database
+npm run db:push         # Push schema changes to database
+npm run db:migrate      # Run database migrations
+npm run db:studio       # Open Prisma Studio
+npm run db:seed         # Seed database with sample data
+
+# Testing
+npm run test            # Run tests
+npm run test:watch      # Run tests in watch mode
+npm run test:coverage   # Generate test coverage report
+
+# Code Quality
+npm run lint            # Run ESLint
+npm run type-check      # Run TypeScript type checking
+
+# Docker
+npm run docker:build    # Build Docker image
+npm run docker:run      # Run Docker container
+```
+
+### Adding New Features
+
+1. **Create API Routes:**
+   ```typescript
+   // src/app/api/your-feature/route.ts
+   import { NextRequest, NextResponse } from 'next/server'
+   import { getServerSession } from 'next-auth'
+   import { authOptions } from '@/lib/auth'
+
+   export async function GET(req: NextRequest) {
+     const session = await getServerSession(authOptions)
+     if (!session?.user?.id) {
+       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+     }
+     // Your logic here
+   }
+   ```
+
+2. **Create Components:**
+   ```typescript
+   // src/components/your-feature/YourComponent.tsx
+   'use client'
+   
+   export function YourComponent() {
+     return (
+       <div className="bg-gray-800 border-gray-700 rounded-lg p-4">
+         {/* Your component content */}
+       </div>
+     )
+   }
+   ```
+
+3. **Add Database Models:**
+   ```prisma
+   // Add to prisma/schema.prisma
+   model YourModel {
+     id        String   @id @default(cuid())
+     // Your fields here
+     createdAt DateTime @default(now())
+     updatedAt DateTime @updatedAt
+     
+     @@map("your_table_name")
+   }
+   ```
+
+### Customization
+
+#### Branding
+Update colors and branding in `tailwind.config.ts`:
+```typescript
+colors: {
+  wtf: {
+    purple: '#8B5CF6',      // Primary brand color
+    green: '#10B981',       // Success/accent color
+    blue: '#3B82F6',        // Info color
+    orange: '#F59E0B',      // Warning color
+    red: '#EF4444',         // Error color
+  }
+}
+```
+
+#### Email Templates
+Customize email templates in `src/lib/services/EmailService.ts`
+
+#### AI Prompts
+Update AI system prompts in `src/app/api/ai/gpt/route.ts`
+
+## 🔐 Security
+
+### Authentication
+- NextAuth.js with JWT strategy
+- Google OAuth integration
+- Secure password hashing with bcrypt
+- Session management with HTTP-only cookies
+
+### API Security
+- Rate limiting on API routes
+- Input validation with Zod schemas
+- SQL injection prevention with Prisma
+- CORS configuration for API endpoints
+
+### Data Protection
+- Environment variable encryption
+- Secure file uploads with type validation
+- Data sanitization for user inputs
+- HTTPS enforcement in production
+
+## 📈 Analytics & Monitoring
+
+### Built-in Analytics
+- User engagement tracking
+- Deal pipeline metrics
+- Revenue and conversion tracking
+- Performance monitoring
+
+### External Services
+- **PostHog**: Product analytics and feature flags
+- **Sentry**: Error tracking and performance monitoring
+- **Vercel Analytics**: Web vitals and performance metrics
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Database Connection Issues:**
+```bash
+# Check database URL format
+DATABASE_URL="postgresql://username:password@host:port/database"
+
+# Reset database
+npx prisma migrate reset
+npx prisma generate
+```
+
+**Build Errors:**
+```bash
+# Clear Next.js cache
+rm -rf .next
+
+# Reinstall dependencies
+rm -rf node_modules package-lock.json
+npm install
+```
+
+**Environment Variables:**
+```bash
+# Verify all required variables are set
+node -e "console.log(process.env)" | grep -E "(DATABASE_URL|NEXTAUTH_SECRET|STRIPE_)"
+```
+
+### Performance Optimization
+
+1. **Database Optimization:**
+   - Add indexes for frequently queried fields
+   - Use database connection pooling
+   - Implement query result caching
+
+2. **Frontend Optimization:**
+   - Enable Next.js image optimization
+   - Implement lazy loading for components
+   - Use React.memo for expensive components
+
+3. **API Optimization:**
+   - Implement response caching
+   - Use database query optimization
+   - Add request rate limiting
+
+## 🚀 Scaling
+
+### Horizontal Scaling
+- Deploy multiple instances behind a load balancer
+- Use Redis for session storage
+- Implement database read replicas
+
+### Database Scaling
+- Use connection pooling (PgBouncer)
+- Implement database sharding
+- Add read replicas for analytics
+
+### File Storage
+- Use AWS S3 or similar for file uploads
+- Implement CDN for static assets
+- Add image optimization service
+
+## 📚 Additional Resources
+
+### Documentation
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [NextAuth.js Documentation](https://next-auth.js.org)
+
+### APIs and Services
+- [Stripe API Documentation](https://stripe.com/docs/api)
+- [OpenAI API Documentation](https://platform.openai.com/docs)
+- [ATTOM Data API](https://api.developer.attomdata.com)
+- [SendGrid API Documentation](https://docs.sendgrid.com)
+
+### Community
+- [WTF Discord Server](https://discord.gg/aKXkEDUH)
+- [GitHub Issues](https://github.com/yourusername/wholesale2flip/issues)
+- [Feature Requests](https://github.com/yourusername/wholesale2flip/discussions)
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📞 Support
+
+For support and questions:
+- Email: support@wholesale2flip.com
+- Discord: [WTF Community](https://discord.gg/aKXkEDUH)
+- Documentation: [docs.wholesale2flip.com](https://docs.wholesale2flip.com)
+
+---
+
+## 🎯 Next Steps
+
+After deployment, consider these enhancements:
+
+1. **Advanced Analytics Dashboard**
+   - Market trend analysis
+   - Comparative market analysis (CMA)
+   - ROI tracking and forecasting
+
+2. **Mobile App Development**
+   - React Native mobile app
+   - Push notifications
+   - Offline functionality
+
+3. **Advanced AI Features**
+   - Computer vision for property analysis
+   - Predictive pricing models
+   - Automated lead scoring
+
+4. **Marketplace Features**
+   - Public property marketplace
+   - Buyer/seller networking
+   - Transaction management
+
+5. **Enterprise Features**
+   - Team collaboration tools
+   - White-label solutions
+   - API for third-party integrations
+
+## 🏆 Success Metrics
+
+Track these KPIs to measure platform success:
+
+- **User Engagement:**
+  - Daily/Monthly Active Users
+  - Session duration
+  - Feature adoption rates
+
+- **Business Metrics:**
+  - Revenue per user
+  - Churn rate
+  - Customer acquisition cost
+
+- **Platform Performance:**
+  - Deal conversion rates
+  - Average deal size
+  - Time to close deals
+
+---
+
+**Built with ❤️ by the WTF Team**
+
+*Transforming real estate wholesaling with cutting-edge technology and AI-powered insights.*
